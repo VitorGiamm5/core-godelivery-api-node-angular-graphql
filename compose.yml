@@ -1,0 +1,103 @@
+name: godelivery-node-angular-graphql
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+      PGDATA: /var/lib/postgresql/18/docker
+    ports: ["127.0.0.1:${POSTGRES_HOST_PORT:-9101}:5432"]
+    volumes: [node_postgres:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:4.4.0-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?}
+    ports: ["127.0.0.1:${RABBITMQ_HOST_PORT:-9102}:5672", "127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-9103}:15672"]
+    volumes: [node_rabbitmq:/var/lib/rabbitmq]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 20
+  storage:
+    build: { context: ., dockerfile: minio.Dockerfile }
+    image: godelivery-node-angular-graphql-minio:RELEASE.2025-10-15T17-29-55Z
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?}
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports: ["127.0.0.1:${S3_HOST_PORT:-9104}:9000", "127.0.0.1:${S3_CONSOLE_HOST_PORT:-9106}:9001"]
+    volumes: [node_storage:/data]
+  api:
+    build: { context: godelivery-api-node }
+    image: godelivery-node-angular-graphql-api:local
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      S3_ENDPOINT: http://storage:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?}
+      S3_BUCKET: ${S3_BUCKET:-godelivery-node-cnh}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?}
+      OIDC_COOKIE_SECRET: ${OIDC_COOKIE_SECRET:?}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:${WEB_HOST_PORT:-9100}/oidc}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-godelivery-api}
+      WEB_URL: ${WEB_URL:-http://localhost:${WEB_HOST_PORT:-9100}}
+      LOKI_URL: http://loki:3100
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel:4318
+    ports: ["127.0.0.1:${API_HOST_PORT:-9105}:9105"]
+    volumes: [node_oidc_keys:/data]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      storage: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9105/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      retries: 20
+  web:
+    build: { context: godelivery-web-angular }
+    image: godelivery-node-angular-graphql-web:local
+    ports: ["127.0.0.1:${WEB_HOST_PORT:-9100}:80"]
+    depends_on:
+      api: { condition: service_healthy }
+  loki:
+    image: grafana/loki:3.5.7
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes: ["./observability/loki.yml:/etc/loki/local-config.yaml:ro", "node_loki:/loki"]
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes: ["./observability/tempo.yml:/etc/tempo.yml:ro", "node_tempo:/var/tempo"]
+  otel:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    command: ["--config=/etc/otel.yml"]
+    volumes: ["./observability/otel.yml:/etc/otel.yml:ro"]
+    depends_on: [tempo]
+  prometheus:
+    image: prom/prometheus:v3.7.2
+    command: ["--config.file=/etc/prometheus.yml"]
+    volumes: ["./observability/prometheus.yml:/etc/prometheus.yml:ro", "node_prometheus:/prometheus"]
+  grafana:
+    image: grafana/grafana:12.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?}
+    ports: ["127.0.0.1:${GRAFANA_HOST_PORT:-9107}:3000"]
+    volumes: ["./observability/grafana:/etc/grafana/provisioning:ro", "node_grafana:/var/lib/grafana"]
+    depends_on: [prometheus, tempo, loki]
+volumes:
+  node_postgres:
+  node_rabbitmq:
+  node_storage:
+  node_oidc_keys:
+  node_loki:
+  node_tempo:
+  node_prometheus:
+  node_grafana:

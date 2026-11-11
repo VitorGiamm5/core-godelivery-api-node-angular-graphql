@@ -1,0 +1,21 @@
+{
+  "name": "angular-node-graphql",
+  "version": "1.0.0",
+  "description": "Ambiente isolado para comparar GoDelivery .NET e NestJS",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test:e2e": "node tests/run-e2e.mjs",
+    "test:playwright": "playwright test",
+    "test:playwright:ui": "playwright test --ui"
+  },
+  "keywords": [],
+  "type": "module",
+  "devDependencies": {
+    "@aws-sdk/client-s3": "3.1165.0",
+    "newman": "6.2.3",
+    "pg": "8.16.3",
+    "@playwright/test": "1.65.0"
+  }
+}
