@@ -1,0 +1,32 @@
+<header><h1>GoDelivery</h1><span>Angular + NestJS + GraphQL</span>@if (auth.authenticated()) { <button (click)="logout()">Sair</button> }</header>
+<main>
+  @if (error()) { <p class="alert" role="alert" aria-live="assertive">{{ error() }}</p> }
+  @if (notice()) { <p class="notice">{{ notice() }}</p> }
+  @if (!auth.authenticated()) {
+    <section class="welcome"><h2>Operação de entregas e locações</h2><p>Acesse sua conta para consultar e registrar as operações</p><button (click)="login()">Entrar</button></section>
+  } @else {
+    <nav aria-label="Módulos">
+      <button [class.active]="view() === 'motorcycles'" (click)="view.set('motorcycles')">Motocicletas</button>
+      <button [class.active]="view() === 'deliveriers'" (click)="view.set('deliveriers')">Entregadores e CNH</button>
+      <button [class.active]="view() === 'rentals'" (click)="view.set('rentals')">Locações</button>
+      <button [class.active]="view() === 'users'" (click)="view.set('users')">Usuários</button>
+    </nav>
+    @if (view() === 'motorcycles') {
+      <section><h2>Motocicletas</h2><form (ngSubmit)="createMotorcycle()"><label>Placa<input name="plate" [(ngModel)]="motorcycleForm.plate" required></label><label>Ano<input type="number" name="year" [(ngModel)]="motorcycleForm.yearManufacture" required></label><label>Modelo<select name="model" [(ngModel)]="motorcycleForm.modelName" required><option value="">Selecione</option>@for (model of models(); track model.id) { <option [value]="model.name">{{ model.name }}</option> }</select></label><button [disabled]="busy()">Cadastrar</button></form></section>
+      <section><h3>Modelos disponíveis</h3><p>@for (model of models(); track model.id) { <span class="tag">{{ model.name }}</span> }</p></section>
+      <section><h3>Motocicletas cadastradas</h3><table><thead><tr><th>Placa</th><th>Ano</th><th>Modelo</th><th>Ações</th></tr></thead><tbody>@for (motorcycle of motorcycles(); track motorcycle.id) { <tr><td>{{ motorcycle.plate }}</td><td>{{ motorcycle.yearManufacture }}</td><td>{{ motorcycle.modelName }}</td><td><button (click)="changePlate(motorcycle.id)">Alterar placa</button><button (click)="deleteMotorcycle(motorcycle.id)">Excluir</button></td></tr> }</tbody></table></section>
+    }
+    @if (view() === 'deliveriers') {
+      <section><h2>Entregadores</h2><form (ngSubmit)="createDeliverier()"><label>Nome<input name="fullName" [(ngModel)]="deliverierForm.fullName" required></label><label>CNPJ<input name="cnpj" [(ngModel)]="deliverierForm.cnpj" required></label><label>Nascimento<input type="date" name="birthDate" [(ngModel)]="deliverierForm.birthDate" required></label><label>Número da CNH<input name="licenseNumber" [(ngModel)]="deliverierForm.licenseNumber" required></label><label>Categoria<select name="licenseType" [(ngModel)]="deliverierForm.licenseType"><option>A</option><option>AB</option></select></label><label>Emissão<input type="date" name="issueDate" [(ngModel)]="deliverierForm.issueDate" required></label><label>Validade<input type="date" name="expiryDate" [(ngModel)]="deliverierForm.expiryDate" required></label><button [disabled]="busy()">Cadastrar</button></form></section>
+      <section><h3>Entregadores cadastrados</h3><table><thead><tr><th>Nome</th><th>CNPJ</th><th>CNH</th><th>Arquivo</th></tr></thead><tbody>@for (deliverier of deliveriers(); track deliverier.id) { <tr><td>{{ deliverier.fullName }}</td><td>{{ deliverier.cnpj }}</td><td>{{ deliverier.licenseNumber }} ({{ deliverier.licenseType }})</td><td><input type="file" accept="image/png,image/bmp" (change)="uploadLicense(deliverier.licenseNumber, $event)">@if (deliverier.hasLicenseFile) { <button (click)="downloadLicense(deliverier.licenseNumber)">Abrir</button> }</td></tr> }</tbody></table></section>
+    }
+    @if (view() === 'rentals') {
+      <section><h2>Locações</h2><form (ngSubmit)="createRental()"><label>Entregador<select name="deliverier" [(ngModel)]="rentalForm.deliverierId" required><option value="">Selecione</option>@for (deliverier of deliveriers(); track deliverier.id) { <option [value]="deliverier.id">{{ deliverier.fullName }}</option> }</select></label><label>Motocicleta<select name="motorcycle" [(ngModel)]="rentalForm.motorcycleId" required><option value="">Selecione</option>@for (motorcycle of motorcycles(); track motorcycle.id) { <option [value]="motorcycle.id">{{ motorcycle.plate }}</option> }</select></label><label>Plano<select name="plan" [(ngModel)]="rentalForm.planId" required><option value="">Selecione</option>@for (plan of plans(); track plan.id) { <option [value]="plan.id">{{ plan.name }} · R$ {{ plan.dailyCost }}/dia</option> }</select></label><label>Início<input type="datetime-local" name="startDate" [(ngModel)]="rentalForm.startDate"></label><button [disabled]="busy()">Criar locação</button></form></section>
+      @if (returnResult()) { <p class="notice">{{ returnResult() }}</p> }
+      <section><h3>Locações registradas</h3><table><thead><tr><th>ID</th><th>Motocicleta</th><th>Previsão</th><th>Situação</th></tr></thead><tbody>@for (rental of rentals(); track rental.id) { <tr><td>{{ rental.id }}</td><td>{{ rental.motorcycleId }}</td><td>{{ rental.estimatedReturnDate }}</td><td>@if (rental.returnedToBaseDate) { Devolvida } @else { <button (click)="returnRental(rental.id)">Registrar devolução</button> }</td></tr> }</tbody></table></section>
+    }
+    @if (view() === 'users') {
+      <section><h2>Criar conta</h2><p>Disponível para administradores</p><form (ngSubmit)="createUser()"><label>Nome<input name="name" [(ngModel)]="userForm.name" required></label><label>Email<input type="email" name="email" [(ngModel)]="userForm.email" required></label><label>Senha inicial<input type="password" name="password" [(ngModel)]="userForm.password" minlength="12" required></label><button [disabled]="busy()">Criar usuário</button></form></section>
+    }
+  }
+</main>

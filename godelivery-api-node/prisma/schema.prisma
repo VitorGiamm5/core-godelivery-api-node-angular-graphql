@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("operator")
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model OidcRecord {
+  id        String   @id
+  type      String
+  payload   Json
+  expiresAt DateTime?
+  grantId   String?
+  userCode  String?  @unique
+  uid       String?  @unique
+
+  @@index([grantId])
+  @@index([expiresAt])
+}
+
+model RevokedAccessToken {
+  jti       String   @id
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model MotorcycleModel {
+  id          String       @id @default(uuid())
+  name        String
+  normalized  String       @unique
+  motorcycles Motorcycle[]
+}
+
+model Motorcycle {
+  id               String          @id @default(uuid())
+  plate            String
+  plateNormalized  String          @unique
+  yearManufacture  Int
+  modelId          String
+  model            MotorcycleModel @relation(fields: [modelId], references: [id])
+  createdAt        DateTime        @default(now())
+  rentals          Rental[]
+  notifications    Notification[]
+}
+
+model Deliverier {
+  id          String   @id @default(uuid())
+  fullName    String
+  cnpj        String   @unique
+  birthDate   DateTime
+  license     License?
+  rentals     Rental[]
+  createdAt   DateTime @default(now())
+}
+
+model License {
+  id          String    @id
+  type        String
+  issueDate   DateTime
+  expiryDate  DateTime
+  objectKey   String?
+  mimeType    String?
+  deliverierId String   @unique
+  deliverier Deliverier @relation(fields: [deliverierId], references: [id])
+}
+
+model RentalPlan {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  days      Int
+  dailyCost Decimal  @db.Decimal(12, 2)
+  rentals   Rental[]
+}
+
+model Rental {
+  id                  String     @id @default(uuid())
+  deliverierId        String
+  deliverier          Deliverier @relation(fields: [deliverierId], references: [id])
+  motorcycleId        String?
+  motorcycle          Motorcycle? @relation(fields: [motorcycleId], references: [id])
+  planId              String
+  plan                RentalPlan @relation(fields: [planId], references: [id])
+  startDate           DateTime
+  endDate             DateTime
+  estimatedReturnDate DateTime
+  returnedToBaseDate  DateTime?
+  createdAt           DateTime @default(now())
+
+  @@index([motorcycleId])
+}
+
+model Notification {
+  id           String     @id @default(uuid())
+  motorcycleId String
+  motorcycle   Motorcycle @relation(fields: [motorcycleId], references: [id])
+  year         Int
+  createdAt    DateTime   @default(now())
+}
