@@ -8,6 +8,10 @@
 **/dist/
 **/.angular/
 **/.cache/
+**/coverage/
+output/
+playwright-report/
+test-results/
 **/*.tsbuildinfo
 **/secrets/
 *.pem

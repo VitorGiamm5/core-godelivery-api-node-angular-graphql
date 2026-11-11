@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret scanning
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan repository with Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+
+  api:
+    name: API audit, tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.0
+          cache: npm
+          cache-dependency-path: godelivery-api-node/package-lock.json
+      - name: Install API dependencies
+        working-directory: godelivery-api-node
+        run: npm ci
+      - name: Audit production dependencies
+        working-directory: godelivery-api-node
+        run: npm audit --omit=dev --audit-level=high
+      - name: Run API unit tests
+        working-directory: godelivery-api-node
+        run: npm test
+      - name: Build API
+        working-directory: godelivery-api-node
+        run: npm run build
+
+  web:
+    name: Web audit, tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.0
+          cache: npm
+          cache-dependency-path: godelivery-web-angular/package-lock.json
+      - name: Install web dependencies
+        working-directory: godelivery-web-angular
+        run: npm ci
+      - name: Audit production dependencies
+        working-directory: godelivery-web-angular
+        run: npm audit --omit=dev --audit-level=high
+      - name: Run web unit tests
+        working-directory: godelivery-web-angular
+        run: npm test
+      - name: Build web
+        working-directory: godelivery-web-angular
+        run: npm run build
+
+  integration:
+    name: Compose integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install integration dependencies
+        run: npm ci
+      - name: Audit root production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Create ephemeral test environment
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { randomBytes } from 'node:crypto';
+          import { writeFileSync } from 'node:fs';
+
+          const secret = () => randomBytes(32).toString('hex');
+          const lines = [
+            'POSTGRES_USER=godelivery_ci',
+            'POSTGRES_PASSWORD=' + secret(),
+            'POSTGRES_DB=godelivery_node',
+            'RABBITMQ_USER=godelivery_ci',
+            'RABBITMQ_PASSWORD=' + secret(),
+            'S3_ACCESS_KEY=godelivery_ci_' + randomBytes(6).toString('hex'),
+            'S3_SECRET_KEY=' + secret(),
+            'ADMIN_EMAIL=admin@godelivery.local',
+            'ADMIN_PASSWORD=' + secret(),
+            'OIDC_COOKIE_SECRET=' + secret(),
+            'OIDC_ISSUER=http://localhost:9100/oidc',
+            'OIDC_AUDIENCE=godelivery-api',
+            'WEB_URL=http://localhost:9100',
+            'S3_BUCKET=godelivery-node-cnh',
+            'GRAFANA_ADMIN_USER=grafana_ci',
+            'GRAFANA_ADMIN_PASSWORD=' + secret(),
+          ];
+          writeFileSync('.env', lines.join(String.fromCharCode(10)) + String.fromCharCode(10), { mode: 0o600 });
+          NODE
+      - name: Build and start Compose stack
+        run: docker compose up -d --build --wait --wait-timeout 900
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Run Newman integration collection
+        run: npm run test:e2e
+      - name: Run browser authentication tests
+        run: npm run test:playwright
+      - name: Stop stack and remove ephemeral volumes
+        if: always()
+        run: docker compose down --volumes --remove-orphans

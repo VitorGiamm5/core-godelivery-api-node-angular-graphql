@@ -1,0 +1,477 @@
+{
+  "info": {
+    "name": "GoDelivery Node E2E",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "OIDC discovery",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/oidc/.well-known/openid-configuration"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"discovery responde\", () => pm.response.to.have.status(200));",
+              "pm.test(\"issuer correto\", () => pm.expect(pm.response.json().issuer).to.equal(pm.environment.get(\"baseUrl\") + \"/oidc\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token inválido é rejeitado",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer invalid-token"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query { motorcycleModels { id } }\",\"variables\":{}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"token inválido rejeitado\", () => pm.expect(result.errors?.[0]?.message).to.match(/Invalid access token/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Modelos",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query { motorcycleModels { id name } }\",\"variables\":{}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"modelos disponíveis\", () => pm.expect(result.data.motorcycleModels.length).to.be.greaterThan(0));",
+              "pm.environment.set(\"modelName\", result.data.motorcycleModels[0].name);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Planos",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query { rentalPlans { id days dailyCost } }\",\"variables\":{}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "const plan = result.data.rentalPlans.find(p => p.days === 7);",
+              "pm.test(\"plano de sete dias disponível\", () => pm.expect(plan).to.exist);",
+              "pm.environment.set(\"planId\", plan.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Criar motocicleta",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation($input: CreateMotorcycleInput!) { createMotorcycle(input: $input) { id plate yearManufacture } }\",\"variables\":{\"input\":{\"plate\":\"{{plate}}\",\"yearManufacture\":2026,\"modelName\":\"{{modelName}}\"}}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"placa normalizada\", () => pm.expect(result.data.createMotorcycle.plate).to.equal(pm.environment.get(\"plate\")));",
+              "pm.environment.set(\"motorcycleId\", result.data.createMotorcycle.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consultar motocicleta",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query($id: String!) { motorcycle(id: $id) { id plate } }\",\"variables\":{\"id\":\"{{motorcycleId}}\"}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"motocicleta encontrada\", () => pm.expect(result.data.motorcycle.id).to.equal(pm.environment.get(\"motorcycleId\")));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alterar placa",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation($id: String!, $plate: String!) { changeMotorcyclePlate(id: $id, plate: $plate) { id plate } }\",\"variables\":{\"id\":\"{{motorcycleId}}\",\"plate\":\"{{plateChanged}}\"}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"nova placa persistida\", () => pm.expect(result.data.changeMotorcyclePlate.plate).to.equal(pm.environment.get(\"plateChanged\")));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Filtrar motocicletas por placa",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query($plate: String!) { motorcycles(plate: $plate, page: 1, limit: 1) { id plate } motorcycleCount(plate: $plate) }\",\"variables\":{\"plate\":\"{{plateChanged}}\"}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"filtro encontra motocicleta\", () => pm.expect(result.data.motorcycles.some(m => m.id === pm.environment.get(\"motorcycleId\"))).to.be.true);",
+              "pm.test(\"paginação informa total\", () => pm.expect(result.data.motorcycleCount).to.equal(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Criar entregador",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation($input: CreateDeliverierInput!) { createDeliverier(input: $input) { id cnpj licenseNumber } }\",\"variables\":{\"input\":{\"fullName\":\"Postman Tester\",\"cnpj\":\"{{cnpj}}\",\"birthDate\":\"2000-01-01T00:00:00.000Z\",\"licenseNumber\":\"{{licenseNumber}}\",\"licenseType\":\"AB\",\"issueDate\":\"2020-01-01T00:00:00.000Z\",\"expiryDate\":\"2030-01-01T00:00:00.000Z\"}}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"CNPJ preservado\", () => pm.expect(result.data.createDeliverier.cnpj).to.equal(pm.environment.get(\"cnpj\")));",
+              "pm.environment.set(\"deliverierId\", result.data.createDeliverier.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Enviar CNH",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/licenses/{{licenseNumber}}/file",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"licenseImageBase64\":\"{{licenseBase64}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"upload aceito\", () => pm.response.to.have.status(201));",
+              "pm.test(\"metadados da CNH\", () => pm.expect(pm.response.json().metadata.id).to.equal(pm.environment.get(\"licenseNumber\")));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Baixar CNH",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/licenses/{{licenseNumber}}/file"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"arquivo disponível\", () => pm.response.to.have.status(200));",
+              "pm.test(\"tipo BMP\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"image/bmp\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Criar locação",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation($input: CreateRentalInput!) { createRental(input: $input) { id motorcycleId planId } }\",\"variables\":{\"input\":{\"deliverierId\":\"{{deliverierId}}\",\"motorcycleId\":\"{{motorcycleId}}\",\"planId\":\"{{planId}}\",\"startDate\":\"{{startDate}}\"}}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"locação associada à motocicleta\", () => pm.expect(result.data.createRental.motorcycleId).to.equal(pm.environment.get(\"motorcycleId\")));",
+              "pm.environment.set(\"rentalId\", result.data.createRental.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Devolver locação",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation($id: String!, $date: DateTime!) { returnRental(id: $id, returnedToBaseDate: $date) { value chargeableDays rentalAmount totalCharge } }\",\"variables\":{\"id\":\"{{rentalId}}\",\"date\":\"{{returnDate}}\"}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"multa do plano de sete dias\", () => pm.expect(result.data.returnRental.value).to.equal(20));",
+              "pm.test(\"seis dias cobrados\", () => pm.expect(result.data.returnRental.chargeableDays).to.equal(6));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Excluir motocicleta devolvida",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/graphql",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation($id: String!) { deleteMotorcycle(id: $id) }\",\"variables\":{\"id\":\"{{motorcycleId}}\"}}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const result = pm.response.json();",
+              "pm.test(\"sem erros GraphQL\", () => pm.expect(result.errors, JSON.stringify(result.errors?.map(e => e.message))).to.be.undefined);",
+              "pm.test(\"motocicleta excluída\", () => pm.expect(result.data.deleteMotorcycle).to.be.true);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
