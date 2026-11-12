@@ -51,6 +51,11 @@ jobs:
       - name: Install API dependencies
         working-directory: godelivery-api-node
         run: npm ci
+      - name: Generate Prisma client
+        working-directory: godelivery-api-node
+        env:
+          DATABASE_URL: postgresql://build:build@localhost:5432/build
+        run: npx prisma generate
       - name: Audit production dependencies
         working-directory: godelivery-api-node
         run: npm audit --omit=dev --audit-level=high
