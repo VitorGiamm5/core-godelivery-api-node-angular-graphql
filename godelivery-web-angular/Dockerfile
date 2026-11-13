@@ -11,4 +11,5 @@ COPY select-api-slot.sh /usr/local/bin/select-api-slot
 COPY gateway-entrypoint.sh /usr/local/bin/gateway-entrypoint
 COPY --from=build /app/dist/godelivery-web-angular/browser /usr/share/nginx/html
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/gateway-entrypoint"]
+CMD ["nginx", "-g", "daemon off;"]
 EXPOSE 80
