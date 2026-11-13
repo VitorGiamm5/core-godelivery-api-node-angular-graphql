@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { Express, Request, Response } from 'express';
 import express from 'express';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import Provider, { type AdapterPayload } from 'oidc-provider';
 import { exportJWK, generateKeyPair, type JSONWebKeySet } from 'jose';
@@ -27,8 +27,17 @@ async function privateJwks(): Promise<JSONWebKeySet> {
   jwk.alg = 'RS256';
   jwk.use = 'sig';
   const result = { keys: [jwk] };
-  writeFileSync(path, JSON.stringify(result), { mode: 0o600, flag: 'wx' });
-  return result;
+  const temporaryPath = `${path}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
+  writeFileSync(temporaryPath, JSON.stringify(result), { mode: 0o600, flag: 'wx' });
+  try {
+    linkSync(temporaryPath, path);
+    return result;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    return JSON.parse(readFileSync(path, 'utf8')) as JSONWebKeySet;
+  } finally {
+    unlinkSync(temporaryPath);
+  }
 }
 
 export async function setupOidc(app: INestApplication) {
