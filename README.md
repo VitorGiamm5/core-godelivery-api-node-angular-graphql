@@ -52,16 +52,18 @@ GraphQL é a interface principal da API. Health checks, sessão e arquivos da CN
 
    Preencha POSTGRES_PASSWORD, RABBITMQ_PASSWORD, S3_SECRET_KEY, ADMIN_PASSWORD, OIDC_COOKIE_SECRET e GRAFANA_ADMIN_PASSWORD. ADMIN_PASSWORD precisa ter ao menos 12 caracteres; OIDC_COOKIE_SECRET precisa ter ao menos 32. Os campos de senha vêm vazios de propósito.
 
-4. Inicie a stack:
+4. Construa as imagens, aplique migrations e seed, e inicie a stack:
 
    ~~~~sh
-   docker compose up -d --build
+   docker compose build api-blue api-green web storage
+   docker compose run --rm migrate
+   docker compose up -d --wait --wait-timeout 900
    docker compose ps
    ~~~~
 
 5. Acesse a interface em http://localhost:9100 e autentique-se usando ADMIN_EMAIL e ADMIN_PASSWORD configurados no .env.
 
-As migrações Prisma e os dados iniciais são aplicados na inicialização da API. O seed cria a primeira conta administrativa e planos/modelos usados no ambiente local. Não existe cadastro público.
+O serviço one-off `migrate` aplica as migrações Prisma e os dados iniciais antes das APIs. O seed cria a primeira conta administrativa e planos/modelos usados no ambiente local. Não existe cadastro público.
 
 ### Endereços locais
 
@@ -79,7 +81,7 @@ As portas publicadas pelo Compose ficam limitadas a loopback. As credenciais do 
 
 ### Deploy blue-green da API
 
-O serviço `web` entrega o Angular e encaminha GraphQL, OIDC, arquivos e health checks para o slot ativo. `API_ACTIVE_SLOT` escolhe o slot inicial quando o volume `node_gateway_state` ainda está vazio; depois, o script de deploy persiste a seleção nesse volume. Os serviços `api-blue` e `api-green` compartilham PostgreSQL, RabbitMQ, MinIO e a chave OIDC persistida; somente o gateway publica a porta HTTP da aplicação no host.
+O serviço `web` entrega o Angular e encaminha GraphQL, OIDC, arquivos e health checks para o slot ativo. `API_ACTIVE_SLOT` escolhe o slot inicial quando o volume `node_gateway_state` ainda está vazio; depois, o script de deploy persiste a seleção nesse volume. Os serviços `api-blue` e `api-green` compartilham PostgreSQL, RabbitMQ, MinIO e a chave OIDC persistida; somente o gateway publica a porta HTTP da aplicação no host. O serviço one-off `migrate` aplica migrations e seed com a imagem escolhida por `API_MIGRATION_SLOT` antes de iniciar a API; o comando de deploy seleciona automaticamente a imagem do slot-alvo.
 
 Para construir e ativar a nova versão no slot inativo:
 
@@ -87,13 +89,13 @@ Para construir e ativar a nova versão no slot inativo:
 node scripts/api-blue-green.mjs deploy green
 ~~~~
 
-O comando constrói a imagem específica do slot, aguarda o health check da API e dos dois slots, atualiza o destino persistido e recarrega o Nginx sem recriar o gateway. Depois confirma `/health/ready` pela porta pública. Se o gateway ainda não estiver iniciado, o comando o inicia antes da troca. O slot anterior continua em execução para rollback:
+O comando constrói a imagem específica do slot, executa migrations e seed uma única vez com essa imagem, aguarda o health check da API e dos dois slots, atualiza o destino persistido e recarrega o Nginx sem recriar o gateway. Depois confirma `/health/ready` pela porta pública. Se o gateway ainda não estiver iniciado, o comando o inicia antes da troca. O slot anterior continua em execução para rollback:
 
 ~~~~sh
 node scripts/api-blue-green.mjs switch blue
 ~~~~
 
-Para a próxima versão, use `deploy blue` e faça `switch green` para voltar se necessário. A aplicação executa `prisma migrate deploy` na inicialização de cada slot; migrations precisam ser compatíveis com a versão anterior durante o período de sobreposição e rollback. Os dois slots também consomem a mesma fila RabbitMQ, então mudanças no formato das mensagens precisam manter compatibilidade durante a troca.
+Para a próxima versão, use `deploy blue` e faça `switch green` para voltar se necessário. Migrations precisam ser compatíveis com a versão anterior durante o período de sobreposição e rollback. Os dois slots também consomem a mesma fila RabbitMQ, então mudanças no formato das mensagens precisam manter compatibilidade durante a troca.
 
 Para parar os serviços sem apagar os dados persistidos, use docker compose down. O comando docker compose down --volumes remove os volumes locais de banco, fila, arquivos e observabilidade.
 

@@ -33,6 +33,7 @@ O código limita o upload de CNH a PNG/BMP, valida dimensões e tamanho, guarda 
 | OIDC_ISSUER / OIDC_AUDIENCE / WEB_URL | URLs e identificador do cliente/recurso | Configuração pública; use HTTPS real e valores consistentes com proxy, frontend e tokens |
 | S3_BUCKET | Nome do bucket de CNH | Configuração; restrinja o bucket e não o torne público |
 | API_ACTIVE_SLOT | Slot blue/green inicial do gateway | Só inicializa a seleção quando o volume `node_gateway_state` está vazio; o comando de deploy persiste as trocas no volume |
+| API_MIGRATION_SLOT | Slot cuja imagem executa migrations e seed | Valor inicial `blue`; o script de deploy usa a imagem do slot-alvo |
 
 O arquivo .env e suas variantes são ignorados pelo Git. .env.example fica versionado, mas mantém campos secretos vazios. A pipeline gera valores aleatórios efêmeros para testes de integração; ela não acessa credenciais de produção e não requer secrets do GitHub.
 

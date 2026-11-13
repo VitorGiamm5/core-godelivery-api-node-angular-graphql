@@ -31,17 +31,17 @@ function readEnv(name, fallback) {
   return value.replace(/^(?:"(.*)"|'(.*)')$/, (_match, doubleQuoted, singleQuoted) => doubleQuoted ?? singleQuoted);
 }
 
-function compose(args) {
-  const env = { ...process.env };
+function compose(args, overrides = {}) {
+  const env = { ...process.env, ...overrides };
   delete env.API_ACTIVE_SLOT;
   const result = spawnSync('docker', ['compose', ...args], { cwd: root, env, stdio: 'inherit' });
   if (result.error) throw new Error(`Não foi possível executar Docker Compose: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`Docker Compose terminou com código ${result.status ?? 'desconhecido'}.`);
 }
 
-function composeOrFail(args) {
+function composeOrFail(args, overrides = {}) {
   try {
-    compose(args);
+    compose(args, overrides);
   } catch (error) {
     fail(error.message);
   }
@@ -109,13 +109,19 @@ if (target === previousSlot) {
   process.exit(0);
 }
 
-console.log(command === 'deploy'
-  ? `Construindo e aguardando a prontidão do slot ${target}...`
-  : `Aguardando a prontidão do slot ${target}...`);
-composeOrFail([
-  'up', '--detach', ...(command === 'deploy' ? ['--build'] : ['--no-deps', '--no-build', '--pull', 'never']),
-  '--wait', `api-${target}`,
-]);
+if (command === 'deploy') {
+  console.log('Aguardando PostgreSQL, RabbitMQ e MinIO...');
+  composeOrFail(['up', '--detach', '--wait', 'postgres', 'rabbitmq', 'storage']);
+  console.log(`Construindo a imagem do slot ${target}...`);
+  composeOrFail(['build', `api-${target}`]);
+  console.log(`Aplicando migrations e seed pela imagem ${target}...`);
+  composeOrFail(['run', '--rm', '--no-deps', 'migrate'], { API_MIGRATION_SLOT: target });
+  console.log(`Iniciando e aguardando o slot ${target}...`);
+  composeOrFail(['up', '--detach', '--wait', `api-${target}`]);
+} else {
+  console.log(`Aguardando a prontidão do slot ${target}...`);
+  composeOrFail(['up', '--detach', '--no-deps', '--no-build', '--pull', 'never', '--wait', `api-${target}`]);
+}
 console.log('Confirmando os dois slots saudáveis antes da troca...');
 composeOrFail(['up', '--detach', '--wait', 'api-blue', 'api-green']);
 

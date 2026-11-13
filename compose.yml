@@ -1,7 +1,7 @@
 name: godelivery-node-angular-graphql
 x-api-service: &api-service
   build: { context: godelivery-api-node }
-  environment:
+  environment: &api-environment
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
     S3_ENDPOINT: http://storage:9000
@@ -59,6 +59,16 @@ services:
     command: ["server", "/data", "--console-address", ":9001"]
     ports: ["127.0.0.1:${S3_HOST_PORT:-9104}:9000", "127.0.0.1:${S3_CONSOLE_HOST_PORT:-9106}:9001"]
     volumes: [node_storage:/data]
+  migrate:
+    image: godelivery-node-angular-graphql-api:${API_MIGRATION_SLOT:-blue}
+    environment: *api-environment
+    command: ["sh", "-c", "npx prisma migrate deploy && node dist/identity/seed.js"]
+    profiles: [migration]
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      storage: { condition: service_started }
   api-blue:
     <<: *api-service
     image: godelivery-node-angular-graphql-api:blue
