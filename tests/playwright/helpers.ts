@@ -32,7 +32,7 @@ export async function login(page: Page, origin = baseUrl) {
 }
 
 export function apiLogEvents(event: string) {
-  const result = spawnSync('docker', ['compose', 'logs', '--no-color', '--no-log-prefix', '--tail', '1000', 'api'], {
+  const result = spawnSync('docker', ['compose', 'logs', '--no-color', '--no-log-prefix', '--tail', '1000', 'api-blue', 'api-green'], {
     cwd: resolve(import.meta.dirname, '../..'),
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
