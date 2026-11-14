@@ -4,7 +4,7 @@ Este documento descreve as operações expostas pelo código NestJS atual. O end
 
 ## Ambientes e autenticação
 
-No Compose local, a API está disponível em http://localhost:9105 e também por meio do proxy Angular em http://localhost:9100. O endpoint GraphQL é POST /graphql.
+No Compose local, o gateway publica a aplicação e a API em http://localhost:9100. GraphQL, OIDC, health checks e arquivos de CNH são encaminhados ao slot ativo (`api-blue` ou `api-green`); as instâncias da API não publicam portas diretamente no host. O endpoint GraphQL é POST /graphql.
 
 As operações GraphQL dos domínios Identity, Motorcycles, Deliveriers e Rentals exigem um access token JWT:
 

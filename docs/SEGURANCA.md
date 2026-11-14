@@ -32,6 +32,8 @@ O código limita o upload de CNH a PNG/BMP, valida dimensões e tamanho, guarda 
 | GRAFANA_ADMIN_USER | Usuário do Grafana | Configurável; não é segredo |
 | OIDC_ISSUER / OIDC_AUDIENCE / WEB_URL | URLs e identificador do cliente/recurso | Configuração pública; use HTTPS real e valores consistentes com proxy, frontend e tokens |
 | S3_BUCKET | Nome do bucket de CNH | Configuração; restrinja o bucket e não o torne público |
+| API_ACTIVE_SLOT | Slot blue/green inicial do gateway | Só inicializa a seleção quando o volume `node_gateway_state` está vazio; o comando de deploy persiste as trocas no volume |
+| API_MIGRATION_SLOT | Slot cuja imagem executa migrations e seed | Valor inicial `blue`; o script de deploy usa a imagem do slot-alvo |
 
 O arquivo .env e suas variantes são ignorados pelo Git. .env.example fica versionado, mas mantém campos secretos vazios. A pipeline gera valores aleatórios efêmeros para testes de integração; ela não acessa credenciais de produção e não requer secrets do GitHub.
 
@@ -44,7 +46,7 @@ Para produção, forneça os segredos por um secret manager do provedor ou por m
 - Redação de Authorization, cookies, referer, Location, senha e imagem base64 nos logs configurados
 - Liveness e readiness separados
 - Upload de CNH com limite de tamanho e validação de formato/dimensão; download sem cache compartilhado
-- Compose publica portas em loopback no host
+- Compose publica portas em loopback no host; somente o gateway Nginx expõe HTTP, e as instâncias blue/green da API permanecem na rede interna
 - Compose usa projeto, nomes de imagem, rede e volumes próprios; portas do host são configuráveis para coexistir com outras stacks locais
 - .env, variantes, chaves privadas e keystores ignorados pelo Git
 - Contextos Docker da raiz, API e web excluem .env e variantes antes do build

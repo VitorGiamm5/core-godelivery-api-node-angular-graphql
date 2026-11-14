@@ -1,21 +1,22 @@
 # GoDelivery — NestJS + Angular
 
-Aplicação independente para comparação técnica entre uma API NestJS/GraphQL e uma interface Angular. O repositório inclui execução local com Docker Compose, banco PostgreSQL, RabbitMQ, armazenamento compatível com S3 e stack de observabilidade.
+Aplicação independente para comparação técnica entre uma API NestJS/GraphQL e uma interface Angular. O repositório inclui execução local com Docker Compose, gateway Nginx com slots blue-green, banco PostgreSQL, RabbitMQ, armazenamento compatível com S3 e stack de observabilidade.
 
 A aplicação .NET usada na comparação pertence a outro diretório e não é necessária para executar este projeto.
 
 ## Arquitetura
 
 ~~~~text
-Angular 22 ── OIDC Authorization Code + PKCE ── NestJS 12
-   │                                             ├─ Identity / OIDC
-   └──────────── GraphQL + JWT ─────────────────├─ Motorcycles
-                                                 ├─ Deliveriers + CNH → MinIO
-                                                 ├─ Rentals
-                                                 ├─ Notifications → RabbitMQ
-                                                 └─ Prisma → PostgreSQL
-                                 OpenTelemetry → Collector → Tempo / Prometheus
-                                 Pino ───────────────────────→ Loki → Grafana
+Angular 22 ── OIDC + GraphQL ──> Nginx Gateway :9100
+                                      │
+                            active slot: blue / green
+                                 ┌────┴────┐
+                                 ▼         ▼
+                              API blue  API green
+                                 └────┬────┘
+                       PostgreSQL / RabbitMQ / MinIO
+                       OpenTelemetry → Tempo / Prometheus
+                       Pino ─────────→ Loki → Grafana
 ~~~~
 
 GraphQL é a interface principal da API. Health checks, sessão e arquivos da CNH usam HTTP. A documentação completa está em [docs/API.md](docs/API.md).
@@ -51,23 +52,24 @@ GraphQL é a interface principal da API. Health checks, sessão e arquivos da CN
 
    Preencha POSTGRES_PASSWORD, RABBITMQ_PASSWORD, S3_SECRET_KEY, ADMIN_PASSWORD, OIDC_COOKIE_SECRET e GRAFANA_ADMIN_PASSWORD. ADMIN_PASSWORD precisa ter ao menos 12 caracteres; OIDC_COOKIE_SECRET precisa ter ao menos 32. Os campos de senha vêm vazios de propósito.
 
-4. Inicie a stack:
+4. Construa as imagens, aplique migrations e seed, e inicie a stack:
 
    ~~~~sh
-   docker compose up -d --build
+   docker compose build api-blue api-green web storage
+   docker compose run --rm migrate
+   docker compose up -d --wait --wait-timeout 900
    docker compose ps
    ~~~~
 
 5. Acesse a interface em http://localhost:9100 e autentique-se usando ADMIN_EMAIL e ADMIN_PASSWORD configurados no .env.
 
-As migrações Prisma e os dados iniciais são aplicados na inicialização da API. O seed cria a primeira conta administrativa e planos/modelos usados no ambiente local. Não existe cadastro público.
+O serviço one-off `migrate` aplica as migrações Prisma e os dados iniciais antes das APIs. O seed cria a primeira conta administrativa e planos/modelos usados no ambiente local. Não existe cadastro público.
 
 ### Endereços locais
 
 | Serviço | Endereço |
 | --- | --- |
-| Interface Angular, GraphQL e OIDC | http://localhost:9100 |
-| API NestJS direta | http://localhost:9105 |
+| Gateway Nginx, interface Angular, GraphQL e OIDC | http://localhost:9100 |
 | PostgreSQL | 127.0.0.1:9101 |
 | RabbitMQ | 127.0.0.1:9102 |
 | Painel RabbitMQ | http://localhost:9103 |
@@ -76,6 +78,24 @@ As migrações Prisma e os dados iniciais são aplicados na inicialização da A
 | Grafana | http://localhost:9107 |
 
 As portas publicadas pelo Compose ficam limitadas a loopback. As credenciais do Grafana também vêm do arquivo .env.
+
+### Deploy blue-green da API
+
+O serviço `web` entrega o Angular e encaminha GraphQL, OIDC, arquivos e health checks para o slot ativo. `API_ACTIVE_SLOT` escolhe o slot inicial quando o volume `node_gateway_state` ainda está vazio; depois, o script de deploy persiste a seleção nesse volume. Os serviços `api-blue` e `api-green` compartilham PostgreSQL, RabbitMQ, MinIO e a chave OIDC persistida; somente o gateway publica a porta HTTP da aplicação no host. O serviço one-off `migrate` aplica migrations e seed com a imagem escolhida por `API_MIGRATION_SLOT` antes de iniciar a API; o comando de deploy seleciona automaticamente a imagem do slot-alvo.
+
+Para construir e ativar a nova versão no slot inativo:
+
+~~~~sh
+node scripts/api-blue-green.mjs deploy green
+~~~~
+
+O comando constrói a imagem específica do slot, executa migrations e seed uma única vez com essa imagem, aguarda o health check da API e dos dois slots, atualiza o destino persistido e recarrega o Nginx sem recriar o gateway. Depois confirma `/health/ready` pela porta pública. Se o gateway ainda não estiver iniciado, o comando o inicia antes da troca. O slot anterior continua em execução para rollback:
+
+~~~~sh
+node scripts/api-blue-green.mjs switch blue
+~~~~
+
+Para a próxima versão, use `deploy blue` e faça `switch green` para voltar se necessário. Migrations precisam ser compatíveis com a versão anterior durante o período de sobreposição e rollback. Os dois slots também consomem a mesma fila RabbitMQ, então mudanças no formato das mensagens precisam manter compatibilidade durante a troca.
 
 Para parar os serviços sem apagar os dados persistidos, use docker compose down. O comando docker compose down --volumes remove os volumes locais de banco, fila, arquivos e observabilidade.
 

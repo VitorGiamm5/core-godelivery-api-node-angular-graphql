@@ -140,8 +140,12 @@ jobs:
           ];
           writeFileSync('.env', lines.join(String.fromCharCode(10)) + String.fromCharCode(10), { mode: 0o600 });
           NODE
-      - name: Build and start Compose stack
-        run: docker compose up -d --build --wait --wait-timeout 900
+      - name: Build Compose images
+        run: docker compose build api-blue api-green web storage
+      - name: Apply migrations and seed
+        run: docker compose run --rm migrate
+      - name: Start Compose stack
+        run: docker compose up -d --wait --wait-timeout 900
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
       - name: Run Newman integration collection

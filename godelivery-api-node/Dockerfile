@@ -9,4 +9,4 @@ COPY src ./src
 RUN DATABASE_URL=postgresql://build:build@localhost:5432/build npx prisma generate && npm run build
 ENV NODE_ENV=production PORT=9105 OIDC_JWKS_PATH=/data/oidc-jwks.json
 EXPOSE 9105
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/identity/seed.js && node --import ./dist/telemetry.js ./dist/main.js"]
+CMD ["node", "--import", "./dist/telemetry.js", "./dist/main.js"]
