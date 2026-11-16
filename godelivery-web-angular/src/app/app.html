@@ -1,10 +1,90 @@
-<header><h1>GoDelivery</h1><span>Angular + NestJS + GraphQL</span>@if (auth.authenticated()) { <button (click)="logout()">Sair</button> }</header>
-<main>
-  @if (error()) { <p class="alert" role="alert" aria-live="assertive">{{ error() }}</p> }
-  @if (notice()) { <p class="notice">{{ notice() }}</p> }
-  @if (!auth.authenticated()) {
-    <section class="welcome"><h2>Operação de entregas e locações</h2><p>Acesse sua conta para consultar e registrar as operações</p><button (click)="login()">Entrar</button></section>
-  } @else {
+@if (!auth.authenticated()) {
+  <main class="login-page">
+    <section class="login-story" aria-labelledby="story-title">
+      <div class="story-content">
+        <a class="brand-lockup" href="/" aria-label="GoDelivery início">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path d="M6 22.5 13.2 9l5.1 9.2 3.2-5.4L27 22.5H6Z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="23.7" cy="8.3" r="2.3" fill="currentColor" />
+            </svg>
+          </span>
+          <span class="brand-name">Go<span>Delivery</span></span>
+        </a>
+
+        <div class="story-copy">
+          <p class="story-eyebrow"><span></span> GESTÃO QUE ACOMPANHA O SEU RITMO</p>
+          <h1 id="story-title">Sua operação<br />em movimento<span>.</span></h1>
+          <p class="story-description">Entregas, locações e frota organizadas em um só lugar para você seguir em frente com clareza.</p>
+        </div>
+
+        <div class="route-card" aria-hidden="true">
+          <div class="route-card-top">
+            <span class="route-card-title"><span class="route-live-dot"></span> Visão da operação</span>
+            <span class="route-card-code">GODELIVERY <span>/</span> 01</span>
+          </div>
+          <svg class="route-map" viewBox="0 0 640 245" fill="none" preserveAspectRatio="xMidYMid meet">
+            <path class="map-street" d="M-16 46 122 77l87-42 107 35 107-29 142 42 104-25M-8 133l113-15 93 37 91-32 87 34 119-37 158 35M-11 213l129-24 91 30 118-24 79 22 101-32 159 18M63-14l22 77-34 73 40 99M195-19l18 82-24 79 26 83M330-20l-22 86 31 73-15 84M471-14l-15 76 29 83-22 91M576-10l-29 77 42 70-28 82" />
+            <path class="route-shadow" d="m113 174 87-57 82 20 80-67 75 36 79-26" />
+            <path class="route-line" d="m113 174 87-57 82 20 80-67 75 36 79-26" />
+            <circle class="route-stop" cx="113" cy="174" r="8" />
+            <circle class="route-stop" cx="200" cy="117" r="5" />
+            <circle class="route-stop" cx="282" cy="137" r="5" />
+            <circle class="route-stop" cx="362" cy="70" r="5" />
+            <circle class="route-stop" cx="437" cy="106" r="5" />
+            <circle class="route-destination-halo" cx="516" cy="80" r="19" />
+            <circle class="route-destination" cx="516" cy="80" r="7" />
+            <path class="route-destination-mark" d="m513 80 2 2 4-5" />
+          </svg>
+          <div class="route-card-bottom">
+            <span>Uma rota, muitas possibilidades</span>
+            <span class="route-card-arrow">↗</span>
+          </div>
+        </div>
+
+        <div class="story-capabilities" aria-label="Recursos da plataforma">
+          <span><i class="capability-dot capability-dot--mint"></i> Entregas</span>
+          <span><i class="capability-dot capability-dot--blue"></i> Locações</span>
+          <span><i class="capability-dot capability-dot--amber"></i> Frota</span>
+        </div>
+      </div>
+      <span class="story-orbit story-orbit--one" aria-hidden="true"></span>
+      <span class="story-orbit story-orbit--two" aria-hidden="true"></span>
+    </section>
+
+    <section class="login-entry" aria-labelledby="login-title">
+      <div class="login-entry-inner">
+        @if (error()) { <p class="alert login-alert" role="alert" aria-live="assertive">{{ error() }}</p> }
+        @if (notice()) { <p class="notice login-notice">{{ notice() }}</p> }
+        <div class="login-entry-card">
+          <span class="login-kicker"><span class="login-kicker-mark"></span> PORTAL DA OPERAÇÃO</span>
+          <h2 id="login-title">Boas-vindas</h2>
+          <p class="login-intro">Acesse sua conta para acompanhar e cuidar da sua operação.</p>
+          <button class="login-button" (click)="login()">
+            <span>Entrar com minha conta</span>
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4.2 10h11.3m-4.6-4.6 4.7 4.6-4.7 4.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </button>
+          <div class="login-divider"><span>ACESSO À PLATAFORMA</span></div>
+          <div class="login-security">
+            <span class="security-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M7.5 10V7.5a4.5 4.5 0 0 1 9 0V10m-10.1 0h11.2c.8 0 1.4.6 1.4 1.4v7.2c0 .8-.6 1.4-1.4 1.4H6.4c-.8 0-1.4-.6-1.4-1.4v-7.2c0-.8.6-1.4 1.4-1.4Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /><circle cx="12" cy="14.9" r="1.2" fill="currentColor" /></svg>
+            </span>
+            <p>Ao continuar, você será direcionado ao ambiente de autenticação.</p>
+          </div>
+        </div>
+        <footer class="login-footer">GoDelivery <span>·</span> Gestão de operações</footer>
+      </div>
+    </section>
+  </main>
+} @else {
+  <header class="app-header">
+    <h1>GoDelivery</h1>
+    <span>Angular + NestJS + GraphQL</span>
+    <button (click)="logout()">Sair</button>
+  </header>
+  <main class="app-main">
+    @if (error()) { <p class="alert" role="alert" aria-live="assertive">{{ error() }}</p> }
+    @if (notice()) { <p class="notice">{{ notice() }}</p> }
     <nav aria-label="Módulos">
       <button [class.active]="view() === 'motorcycles'" (click)="view.set('motorcycles')">Motocicletas</button>
       <button [class.active]="view() === 'deliveriers'" (click)="view.set('deliveriers')">Entregadores e CNH</button>
@@ -28,5 +108,5 @@
     @if (view() === 'users') {
       <section><h2>Criar conta</h2><p>Disponível para administradores</p><form (ngSubmit)="createUser()"><label>Nome<input name="name" [(ngModel)]="userForm.name" required></label><label>Email<input type="email" name="email" [(ngModel)]="userForm.email" required></label><label>Senha inicial<input type="password" name="password" [(ngModel)]="userForm.password" minlength="12" required></label><button [disabled]="busy()">Criar usuário</button></form></section>
     }
-  }
-</main>
+  </main>
+}
